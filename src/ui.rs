@@ -1,14 +1,10 @@
 use std;
-
 use std::io::prelude::*;
-
 use utils;
 
 const MAGIC_NUMBER: usize = 32;
 
 pub fn get_key_from_user(argc: &usize) -> std::io::Result<[u8; MAGIC_NUMBER]> {
-    
-    
 
     match *argc {
         1 => {
@@ -56,14 +52,17 @@ pub fn read_stdin_to_string(s: &mut std::string::String) {
     }
 }
 
-pub fn read_stdin_to_string_return() -> std::string::String {
-    std::io::stdout().flush().unwrap();
+pub fn read_stdin_to_string_return() -> std::io::Result<std::string::String> {
+    
+    std::io::stdout().flush()?;
+    
     let mut s = std::string::String::new();
     match std::io::stdin().read_line(&mut s) {
             Ok(bytes_read) => s.truncate(bytes_read-2), // Chop off newline char
             Err(e) => println!("There was an error reading user input: {:?}", e)
     }
-    s
+
+    Ok(s)
 }
 
 pub fn get_user_input() -> std::io::Result<u32> {
@@ -90,9 +89,9 @@ pub fn print_entire_db(db: &std::vec::Vec<utils::DatabaseEntry>) {
         return;
     }
 
-    println!("Title\tUsername\tPassword");
+    println!("Title\t\tUsername\tPassword");
     for elem in db.into_iter() {
-        println!("{}\t{}\t{}", elem.title, elem.username, elem.password);
+        println!("{}\t\t{}\t\t{}", elem.title, elem.username, elem.password);
     }
 }
 
@@ -109,7 +108,7 @@ pub fn print_password(db: &std::vec::Vec<utils::DatabaseEntry>) {
     for elem in db.into_iter() {
         match service_from_user == elem.title.to_lowercase() {
             true => {
-                println!("\nThe password for service: {} is: {}", service_from_user, elem.password);
+                println!("\nThe password for service \"{}\" is: {}", service_from_user, elem.password);
                 return;
             },
             false => continue,
@@ -120,7 +119,6 @@ pub fn print_password(db: &std::vec::Vec<utils::DatabaseEntry>) {
     
 }
     
-
 pub fn print_home_screen() {
     println!("\n\nWhat would you like to do?");
     println!("1) Add password");

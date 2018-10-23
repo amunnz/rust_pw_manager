@@ -23,7 +23,7 @@ pub struct DBcrypt {
     pub db: std::vec::Vec<DatabaseEntry>,
 }
 
-pub fn decrypt(message: &[u8], key: &[u8], iv: &[u8]) -> std::io::Result<Vec<u8>, > {
+pub fn decrypt(message: &[u8], key: &[u8], iv: &[u8]) -> std::io::Result<Vec<u8>> {
 
     let mut decryptor = crypto::aes::ctr(crypto::aes::KeySize::KeySize256, &key, &iv);
     let mut decrypted_message = vec![0u8; message.len()];
@@ -32,29 +32,30 @@ pub fn decrypt(message: &[u8], key: &[u8], iv: &[u8]) -> std::io::Result<Vec<u8>
     Ok(decrypted_message)
 }
 
-pub fn encrypt_and_write_to_file(message: &[u8],
-                                key: &[u8],
-                                iv: &[u8],
-                                filename: &std::string::String) -> std::io::Result<()> {
+pub fn encrypt_and_write_to_file(db_obj: DBcrypt) -> std::io::Result<()>{
+
+    // Convert our Vector of Entries into a [u8] array
+    let message = vec_entry_to_bytes(db_obj.db)?;
 
     // 1) Encrypt
     let mut ciphertext = vec![0u8; message.len()];
-    let mut encryptor = crypto::aes::ctr(crypto::aes::KeySize::KeySize256, &key, &iv);
     
+    let mut encryptor = crypto::aes::ctr(crypto::aes::KeySize::KeySize256,
+                                            &db_obj.key, &db_obj.iv);
+  
     encryptor.process(&message, &mut ciphertext);
 
     // 2) Write to file
-    let mut buffer = std::fs::File::create(filename)?;
-
+    let mut buffer = std::fs::File::create(db_obj.filename)?;
+  
     // First write the db itself, then append the iv
     buffer.write(&ciphertext)?;
-    buffer.write(iv)?;
+    buffer.write(&db_obj.iv)?;
 
     Ok(())
 }
 
-//pub fn read_file(file_name: &std::string::String) -> std::io::Result<std::vec::Vec<u8>> {
-pub fn read_file(key: &[u8], file_name: &std::string::String) -> std::io::Result<std::vec::Vec<DatabaseEntry>> {
+pub fn read_file(file_name: &std::string::String) -> std::io::Result<std::vec::Vec<u8>> {
     // The ? handles the result. With an expect() instead, we would get a panic.
     // Instead we silently recover.
     let mut file = std::fs::File::open(file_name)?;
@@ -62,28 +63,12 @@ pub fn read_file(key: &[u8], file_name: &std::string::String) -> std::io::Result
     // Avoid resizing
     let mut buf: std::vec::Vec<u8> = std::vec::Vec::with_capacity(256);
     
-    // read_to_end returns the number of bytes read and guarantees we reach the end of the file   
-    let buf_len = file.read_to_end(&mut buf)?;
-
-    // If the vec is 72 bytes long, the last 32 elements have the iv
-    let iv = buf.split_off(buf_len - MAGIC_NUMBER);
-
+    // read_to_end returns the number of bytes read and guarantees we reach the end of the file
+    let _buf_len = file.read_to_end(&mut buf)?;
     
-    
-    Ok(buf) // Return the entire file, including the unencrypted iv.
+    Ok(buf)
 }
 
-fn byte_vec_to_array(vec: &std::vec::Vec<u8>) -> [u8; MAGIC_NUMBER] {
-    let mut array = [0u8; MAGIC_NUMBER];
-    for(place, element) in array.iter_mut().zip(vec.iter()) {
-        *place = *element;
-    }
-    array
-}
-
-
-
-//pub fn gen_initialisation_vector() -> std::io::Result<[u8; MAGIC_NUMBER]> {
 pub fn gen_initialisation_vector() -> std::io::Result<[u8; MAGIC_NUMBER]> {
 
     // Make the random number generator
@@ -99,14 +84,8 @@ pub fn gen_initialisation_vector() -> std::io::Result<[u8; MAGIC_NUMBER]> {
     Ok(iv)
 }
 
-
-
 pub fn bytes_to_vec_entry(csv: &[u8]) -> std::io::Result<Vec<DatabaseEntry>> {
-    // TODO Iterate over a long vector of byes, splitting into separate strings
-    // within a single object Entries, which is ultimately pushed into a vector
-    // of Entries.
-    
-
+   
     let mut password_database: Vec<DatabaseEntry> = std::vec::Vec::new();
 
     // If we were reading an unencrypted CSV file, we would deal with newlines
@@ -153,7 +132,7 @@ pub fn vec_entry_to_bytes(db: std::vec::Vec<DatabaseEntry>) -> std::io::Result<V
     Ok(bytes_db)
 }
 
-pub fn add_entry() -> std::io::Result<(DatabaseEntry)> {
+pub fn add_entry() -> std::io::Result<DatabaseEntry> {
 
     let mut user_title = std::string::String::new();
     let mut user_username = std::string::String::new();
@@ -181,51 +160,42 @@ pub fn add_entry() -> std::io::Result<(DatabaseEntry)> {
 }
 
 
-// This function acts as ground zero for the various parameters
-// which are eventually returned to main in a more tidy fashion
-fn initialise(argc: &usize) -> std::io::Result<DBcrypt> {
-    
+pub fn initialise(argc: &usize) -> std::io::Result<DBcrypt> {
+      
     let db_obj = DBcrypt {
         iv: gen_initialisation_vector()?,
         key: ui::get_key_from_user(argc)?,
-        filename: ui::read_stdin_to_string_return(),
+        filename: { println!("Please enter your desired filename:"); ui::read_stdin_to_string_return()? },
         db: std::vec::Vec::new(),
     };
 
     Ok(db_obj)
 }
 
-fn initialise_from_file(argc: &usize) -> std::io::Result<DBcrypt> {
+pub fn initialise_from_file(argc: &usize) -> std::io::Result<DBcrypt> {
 
     let db_file_name = std::env::args().nth(1).unwrap();
-    let raw_file_data = read_file(&db_file_name)?;
-    let iv_vec = raw_file_data.split_off(raw_file_data.len() - MAGIC_NUMBER);
+    let mut raw_file_data = read_file(&db_file_name)?;
+    let file_len = raw_file_data.len();
 
-    let mut iv = [0u8; MAGIC_NUMBER];
+    let key = ui::get_key_from_user(argc)?;
 
-    // Copy the data from our vector into our array
-    for (i, elem) in iv_vec.iter().enumerate() {
-        iv[i] = *elem;
+    // The last 32 elements have the iv
+    let mut iv_buffer = [0u8; MAGIC_NUMBER];
+
+    // drain() removes the elements in the collection and places them into element
+    for (iv_elem, buf_elem) in iv_buffer.iter_mut().zip(raw_file_data.drain((file_len - 32)..)) {
+        *iv_elem = buf_elem;
     }
 
-    println!("{:?}", iv_vec);
+    let decrypted_database = decrypt(&raw_file_data, &key, &iv_buffer)?;
 
     let db_obj = DBcrypt {
-        iv: iv,
-        key: ui::get_key_from_user(argc)?,
+        iv: iv_buffer,
+        key: key,
         filename: db_file_name,
-        db: read_file(&db_file_name).unwrap(),
+        db: bytes_to_vec_entry(&decrypted_database)?,
     };
-
-    let a = String::new();
-    let b = a;
-
-    let c = 7;
-    let b = c;
-    println!("{}", a);
-
-
-
 
     Ok(db_obj)
 }
