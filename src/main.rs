@@ -11,8 +11,8 @@ fn main() -> std::io::Result<()> {
 
     // iv, key, filename, vec<entry>
     let mut password_db = match argc {
-        1 => utils::initialise(&argc)?,
-        _ => utils::initialise_from_file(&argc)?,
+        1 => utils::DBcrypt::initialise(&argc)?,
+        _ => utils::DBcrypt::initialise_from_file(&argc)?,
     };
         
     // Initial set up phase is complete, now we want to loop 
@@ -22,19 +22,15 @@ fn main() -> std::io::Result<()> {
         let user_choice = ui::get_user_input().unwrap();
  
         match user_choice {
-            1 => {
-                let new_entry = utils::add_entry()
-                    .expect("Failed to create database entry object from user input");
-                password_db.db.push(new_entry);
-            },
-            2 => ui::print_password(&password_db.db),
-            3 => ui::print_entire_db(&password_db.db),
+            1 => password_db.add_entry().expect("Failed to create database entry object from user input"),
+            2 => password_db.print_password(),
+            3 => password_db.print_entire_db(),
             4 => println!("Delete"),
             5 => println!("Edit"),
             6 => { println!("Discarding changes and exiting"); return Ok(()) },
             7 => {
                 println!("Saving changes to file and exiting");
-                match utils::encrypt_and_write_to_file(password_db) {
+                match password_db.encrypt_and_write_to_file() { // This consumes the object
                     Ok(_) => {
                         println!("Encrypted password database successfully written. Quitting.");
                         return Ok(())
