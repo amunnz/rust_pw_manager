@@ -5,11 +5,13 @@ use crypto;
 use rand::{OsRng, RngCore};
 
 use std::io::BufRead;
-use std::io::SeekFrom;
 
 use crypto::symmetriccipher::SynchronousStreamCipher;
 use ui;
 const MAGIC_NUMBER: usize = 32;
+
+// Case 1: file is provided as argument: ./pw_manager db_file
+// Case 2: db is generated: cargo run, ./pw_manager
 
 pub struct DatabaseEntry {
     pub title: std::string::String,
@@ -18,14 +20,13 @@ pub struct DatabaseEntry {
 }
 
 pub struct DBcrypt {
-    pub iv: [u8; MAGIC_NUMBER],
-    pub key: [u8; MAGIC_NUMBER],
-    pub filename: std::string::String,
-    pub db: std::vec::Vec<DatabaseEntry>,
+    pub iv: [u8; MAGIC_NUMBER], // 1) read from file 2) generated
+    pub key: [u8; MAGIC_NUMBER], // 1) user input 2) user input
+    pub filename: std::string::String, // 1) user argument 2) user input
+    pub db: std::vec::Vec<DatabaseEntry>, // 1) read from file after decryption + generated 2) generated 
 }
 
-
-
+// TO DO: implement on DBcrypt as method
 pub fn decrypt(message: &[u8], key: &[u8], iv: &[u8]) -> std::io::Result<Vec<u8>> {
 
     let mut decryptor = crypto::aes::ctr(crypto::aes::KeySize::KeySize256, &key, &iv);
@@ -35,6 +36,7 @@ pub fn decrypt(message: &[u8], key: &[u8], iv: &[u8]) -> std::io::Result<Vec<u8>
     Ok(decrypted_message)
 }
 
+// TO DO: implement on DBcrypt as associated function to be called by initialisor
 pub fn bytes_to_vec_entry(csv: &[u8]) -> std::io::Result<Vec<DatabaseEntry>> {
    
     let mut password_database: Vec<DatabaseEntry> = std::vec::Vec::new();
