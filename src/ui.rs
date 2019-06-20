@@ -4,8 +4,6 @@ use utils;
 
 const MAGIC_NUMBER: usize = 32;
 
-
-
 pub fn read_stdin_to_string(s: &mut std::string::String) {
     match std::io::stdin().read_line(s) {
             Ok(bytes_read) => s.truncate(bytes_read-1), // Chop off newline char
@@ -111,21 +109,15 @@ impl utils::DBcrypt {
     // Compare with our db
     for elem in self.db.iter() {
         match service_from_user == elem.title.to_lowercase() {
-            true => {
-                println!("\nThe password for service \"{}\" is: {}", service_from_user, elem.password);
-                return;
-            },
+            true => { println!("\nThe password for service \"{}\" is: {}", service_from_user, elem.password); return; },
             false => continue,
         }
     }
 
     println!("Sorry, we couldn't find an entry matching that service name.");
     
+    }
 }
-}
-
-
-
     
 pub fn print_home_screen() {
     println!("\n\nWhat would you like to do?");
